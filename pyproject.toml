@@ -1,0 +1,10 @@
+[project]
+name = "visalinx"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "cryptography>=50.0.2",
+    "playwright>=1.62.0",
+    "playwright-stealth>=1.0.6",
+    "psycopg[binary]>=3.2.0",
+]
