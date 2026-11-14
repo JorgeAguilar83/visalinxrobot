@@ -496,11 +496,15 @@ class VisaBot:
                 # --- FASE 3: Matchmaking Avanzado ---
                 print("\n[3/4] FASE DE EVALUACIÓN (MATCHMAKING)\n")
                 filas_match = []
+                registros_busqueda_db = []
                 for cuenta in self.config.cuentas:
                     if not cuenta.tramites:
                         continue
                     for tramite in cuenta.tramites:
                         rango_str = f"{tramite.fecha_inicio} al {tramite.fecha_tope}"
+                        cid = getattr(tramite, "cliente_id", None) or getattr(cuenta, "cliente_id", None)
+                        cta_id = getattr(tramite, "cuenta_id", None)
+                        nom_solic = getattr(tramite, "nombre_solicitante", "") or str(tramite.ivr)
                         
                         for opcion in tramite.opciones:
                             consulado = opcion["consulado"]
@@ -508,8 +512,11 @@ class VisaBot:
                             sede_str = f"{consulado} / {asc_req}" if asc_req and not getattr(tramite, 'solo_consular', False) else f"{consulado} (Solo Consular)"
                             
                             data_sede = fechas_encontradas.get(consulado)
+                            res_scout = todos_resultados_scout.get(consulado, {})
+                            primer_dia_val = str(res_scout.get("primer_dia") or "Sin fechas")
                             
                             if not data_sede or not data_sede.get("consular"):
+                                diag_txt = "❌ Sin citas consulares en web"
                                 filas_match.append({
                                     "cuenta": cuenta.correo,
                                     "ivr": str(tramite.ivr),
@@ -517,8 +524,25 @@ class VisaBot:
                                     "rango": rango_str,
                                     "consular_web": "Sin citas",
                                     "cas_web": "Sin citas" if asc_req and not getattr(tramite, 'solo_consular', False) else "N/A",
-                                    "resultado": "❌ Sin citas consulares en web"
+                                    "resultado": diag_txt
                                 })
+                                if cid:
+                                    registros_busqueda_db.append({
+                                        "cliente_id": cid,
+                                        "cuenta_id": cta_id,
+                                        "tramite_id": getattr(tramite, "db_id", None),
+                                        "ivr": str(tramite.ivr),
+                                        "nombre_solicitante": nom_solic,
+                                        "consulado": consulado,
+                                        "sede_cas": asc_req if not getattr(tramite, 'solo_consular', False) else None,
+                                        "rango_deseado": rango_str,
+                                        "fecha_proxima_encontrada": primer_dia_val,
+                                        "tope_maximo": str(tramite.fecha_tope),
+                                        "cita_consular_web": "Sin citas",
+                                        "cita_cas_web": "Sin citas" if asc_req and not getattr(tramite, 'solo_consular', False) else "N/A",
+                                        "diagnostico": diag_txt,
+                                        "hubo_match": False
+                                    })
                                 continue
                                 
                             fecha_web_consular = data_sede["consular"]
@@ -527,6 +551,7 @@ class VisaBot:
                             cas_web_str = fecha_web_asc if fecha_web_asc else ("N/A" if getattr(tramite, 'solo_consular', False) else "Sin citas")
                             
                             if fecha_web_consular < tramite.fecha_inicio:
+                                diag_txt = f"❌ Consular ({fecha_web_consular}) anterior a inicio"
                                 filas_match.append({
                                     "cuenta": cuenta.correo,
                                     "ivr": str(tramite.ivr),
@@ -534,10 +559,28 @@ class VisaBot:
                                     "rango": rango_str,
                                     "consular_web": fecha_web_consular,
                                     "cas_web": cas_web_str,
-                                    "resultado": f"❌ Consular ({fecha_web_consular}) anterior a inicio"
+                                    "resultado": diag_txt
                                 })
+                                if cid:
+                                    registros_busqueda_db.append({
+                                        "cliente_id": cid,
+                                        "cuenta_id": cta_id,
+                                        "tramite_id": getattr(tramite, "db_id", None),
+                                        "ivr": str(tramite.ivr),
+                                        "nombre_solicitante": nom_solic,
+                                        "consulado": consulado,
+                                        "sede_cas": asc_req if not getattr(tramite, 'solo_consular', False) else None,
+                                        "rango_deseado": rango_str,
+                                        "fecha_proxima_encontrada": primer_dia_val,
+                                        "tope_maximo": str(tramite.fecha_tope),
+                                        "cita_consular_web": str(fecha_web_consular),
+                                        "cita_cas_web": str(cas_web_str),
+                                        "diagnostico": diag_txt,
+                                        "hubo_match": False
+                                    })
                                 continue
                             elif fecha_web_consular > tramite.fecha_tope:
+                                diag_txt = f"❌ Consular ({fecha_web_consular}) supera tope"
                                 filas_match.append({
                                     "cuenta": cuenta.correo,
                                     "ivr": str(tramite.ivr),
@@ -545,8 +588,25 @@ class VisaBot:
                                     "rango": rango_str,
                                     "consular_web": fecha_web_consular,
                                     "cas_web": cas_web_str,
-                                    "resultado": f"❌ Consular ({fecha_web_consular}) supera tope"
+                                    "resultado": diag_txt
                                 })
+                                if cid:
+                                    registros_busqueda_db.append({
+                                        "cliente_id": cid,
+                                        "cuenta_id": cta_id,
+                                        "tramite_id": getattr(tramite, "db_id", None),
+                                        "ivr": str(tramite.ivr),
+                                        "nombre_solicitante": nom_solic,
+                                        "consulado": consulado,
+                                        "sede_cas": asc_req if not getattr(tramite, 'solo_consular', False) else None,
+                                        "rango_deseado": rango_str,
+                                        "fecha_proxima_encontrada": primer_dia_val,
+                                        "tope_maximo": str(tramite.fecha_tope),
+                                        "cita_consular_web": str(fecha_web_consular),
+                                        "cita_cas_web": str(cas_web_str),
+                                        "diagnostico": diag_txt,
+                                        "hubo_match": False
+                                    })
                                 continue
                                 
                             # Si Consular es buena, evaluamos el CAS (solo si se requiere)
@@ -554,6 +614,7 @@ class VisaBot:
                                 resultado_str = "✅ ¡MATCH PERFECTO (Solo Consular)!"
                             else:
                                 if not fecha_web_asc:
+                                    diag_txt = f"❌ CAS ({asc_req}) sin fechas"
                                     filas_match.append({
                                         "cuenta": cuenta.correo,
                                         "ivr": str(tramite.ivr),
@@ -561,13 +622,31 @@ class VisaBot:
                                         "rango": rango_str,
                                         "consular_web": fecha_web_consular,
                                         "cas_web": "Sin citas",
-                                        "resultado": f"❌ CAS ({asc_req}) sin fechas"
+                                        "resultado": diag_txt
                                     })
+                                    if cid:
+                                        registros_busqueda_db.append({
+                                            "cliente_id": cid,
+                                            "cuenta_id": cta_id,
+                                            "tramite_id": getattr(tramite, "db_id", None),
+                                            "ivr": str(tramite.ivr),
+                                            "nombre_solicitante": nom_solic,
+                                            "consulado": consulado,
+                                            "sede_cas": asc_req,
+                                            "rango_deseado": rango_str,
+                                            "fecha_proxima_encontrada": primer_dia_val,
+                                            "tope_maximo": str(tramite.fecha_tope),
+                                            "cita_consular_web": str(fecha_web_consular),
+                                            "cita_cas_web": "Sin citas",
+                                            "diagnostico": diag_txt,
+                                            "hubo_match": False
+                                        })
                                     continue
                                     
                                 fecha_tope_asc = self._calcular_limite_asc(consulado, asc_req, fecha_web_consular, tramite.dias_margen_traslado)
                                 
                                 if fecha_web_asc > fecha_tope_asc:
+                                    diag_txt = f"❌ CAS ({fecha_web_asc}) supera margen ({fecha_tope_asc})"
                                     filas_match.append({
                                         "cuenta": cuenta.correo,
                                         "ivr": str(tramite.ivr),
@@ -575,8 +654,25 @@ class VisaBot:
                                         "rango": rango_str,
                                         "consular_web": fecha_web_consular,
                                         "cas_web": fecha_web_asc,
-                                        "resultado": f"❌ CAS ({fecha_web_asc}) supera margen ({fecha_tope_asc})"
+                                        "resultado": diag_txt
                                     })
+                                    if cid:
+                                        registros_busqueda_db.append({
+                                            "cliente_id": cid,
+                                            "cuenta_id": cta_id,
+                                            "tramite_id": getattr(tramite, "db_id", None),
+                                            "ivr": str(tramite.ivr),
+                                            "nombre_solicitante": nom_solic,
+                                            "consulado": consulado,
+                                            "sede_cas": asc_req,
+                                            "rango_deseado": rango_str,
+                                            "fecha_proxima_encontrada": primer_dia_val,
+                                            "tope_maximo": str(tramite.fecha_tope),
+                                            "cita_consular_web": str(fecha_web_consular),
+                                            "cita_cas_web": str(fecha_web_asc),
+                                            "diagnostico": diag_txt,
+                                            "hubo_match": False
+                                        })
                                     continue
                                     
                                 resultado_str = "✅ ¡MATCH PERFECTO!"
@@ -591,6 +687,23 @@ class VisaBot:
                                 "cas_web": cas_web_str,
                                 "resultado": resultado_str
                             })
+                            if cid:
+                                registros_busqueda_db.append({
+                                    "cliente_id": cid,
+                                    "cuenta_id": cta_id,
+                                    "tramite_id": getattr(tramite, "db_id", None),
+                                    "ivr": str(tramite.ivr),
+                                    "nombre_solicitante": nom_solic,
+                                    "consulado": consulado,
+                                    "sede_cas": asc_req if not getattr(tramite, 'solo_consular', False) else None,
+                                    "rango_deseado": rango_str,
+                                    "fecha_proxima_encontrada": primer_dia_val,
+                                    "tope_maximo": str(tramite.fecha_tope),
+                                    "cita_consular_web": str(fecha_web_consular),
+                                    "cita_cas_web": str(cas_web_str),
+                                    "diagnostico": resultado_str,
+                                    "hubo_match": True
+                                })
                             break 
                             
                 headers_match = {
@@ -603,6 +716,13 @@ class VisaBot:
                     "resultado": "Resultado"
                 }
                 self._imprimir_tabla(headers_match, filas_match)
+                
+                # Persistencia en base de datos PostgreSQL (Top 10 auto-mantenido)
+                if getattr(self, "db", None) and registros_busqueda_db:
+                    try:
+                        self.db.registrar_busquedas_ciclo(registros_busqueda_db)
+                    except Exception as e_reg:
+                        print(f"  ⚠️ Error registrando historial en BD: {e_reg}")
             else:
                 print("\n[3/4] FASE DE EVALUACIÓN (MATCHMAKING) - Saltada por Circuit Breaker (Ataque Prioritario)")
 

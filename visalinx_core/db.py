@@ -122,6 +122,7 @@ class DatabaseManager:
                         cta.proxy_password,
                         t.id AS tramite_id,
                         t.ivr,
+                        COALESCE(t.nombre_solicitante, c.nombre) AS nombre_solicitante,
                         t.estado_actual,
                         t.fecha_inicio,
                         t.fecha_tope,
@@ -165,6 +166,7 @@ class DatabaseManager:
                         chat_ids_list = [str(row["telegram_chat_id"])] if row["telegram_chat_id"] else []
 
                         cuentas_map[cta_id] = {
+                            "cliente_id": row["cliente_id"],
                             "correo": row["correo"],
                             "contrasena": descifrar_credencial(row["contrasena"]),
                             "telegram_chat_ids": chat_ids_list,
@@ -179,6 +181,9 @@ class DatabaseManager:
 
                         tramite_obj = {
                             "db_id": tra_id,
+                            "cliente_id": row["cliente_id"],
+                            "cuenta_id": cta_id,
+                            "nombre_solicitante": str(row.get("nombre_solicitante") or row.get("cliente_nombre") or row["ivr"]),
                             "ivr": str(row["ivr"]),
                             "estado_actual": row["estado_actual"],
                             "fecha_inicio": fecha_ini_str,
@@ -269,3 +274,49 @@ class DatabaseManager:
             print(f"  💾 [POSTGRESQL] Estado del trámite ID {tramite_db_id} actualizado a '{nuevo_estado}'.")
         except Exception as e:
             print(f"  ❌ [POSTGRESQL ERROR] No se pudo actualizar estado de trámite {tramite_db_id}: {e}")
+
+    def registrar_busquedas_ciclo(self, busquedas_list: list):
+        """
+        Registra el snapshot del ciclo de monitoreo actual.
+        Limpia de forma atómica los registros anteriores de las agencias (cliente_id)
+        evaluadas en este ciclo y guarda todos los solicitantes procesados, permitiendo
+        paginar 100+ registros por cliente sin truncamiento artificial.
+        """
+        if not busquedas_list:
+            return
+
+        # Extraer clientes únicos involucrados en este ciclo de monitoreo
+        clientes_ids = list({int(b["cliente_id"]) for b in busquedas_list if b.get("cliente_id") is not None})
+        if not clientes_ids:
+            return
+
+        # Normalizar clave de fecha próxima encontrada
+        for b in busquedas_list:
+            if "fecha_proxima_encontrada" not in b:
+                b["fecha_proxima_encontrada"] = b.get("primer_dia_calendario") or "Sin fechas"
+
+        sql_delete = "DELETE FROM historial_busquedas_robot WHERE cliente_id = ANY(%s);"
+        sql_insert = """
+            INSERT INTO historial_busquedas_robot (
+                cliente_id, cuenta_id, tramite_id, ivr, nombre_solicitante,
+                consulado, sede_cas, rango_deseado, fecha_proxima_encontrada,
+                tope_maximo, cita_consular_web, cita_cas_web, diagnostico,
+                hubo_match, fecha_busqueda
+            ) VALUES (
+                %(cliente_id)s, %(cuenta_id)s, %(tramite_id)s, %(ivr)s, %(nombre_solicitante)s,
+                %(consulado)s, %(sede_cas)s, %(rango_deseado)s, %(fecha_proxima_encontrada)s,
+                %(tope_maximo)s, %(cita_consular_web)s, %(cita_cas_web)s, %(diagnostico)s,
+                %(hubo_match)s, NOW()
+            );
+        """
+        try:
+            with psycopg.connect(self.conn_str) as conn:
+                with conn.cursor() as cur:
+                    # 1. Limpieza de registros previos del ciclo para los clientes evaluados
+                    cur.execute(sql_delete, (clientes_ids,))
+                    # 2. Inserción de todos los solicitantes evaluados en este ciclo
+                    cur.executemany(sql_insert, busquedas_list)
+                    conn.commit()
+            print(f"  💾 [POSTGRESQL] Ciclo actualizado: {len(busquedas_list)} exploraciones registradas para {len(clientes_ids)} cliente(s).")
+        except Exception as e:
+            print(f"  ⚠️ [POSTGRESQL ADVERTENCIA] No se pudo guardar historial de exploraciones: {e}")

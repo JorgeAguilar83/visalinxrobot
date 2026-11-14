@@ -4,6 +4,9 @@ import os
 class TramiteConfig:
     def __init__(self, data: dict):
         self.db_id = data.get("db_id", None)
+        self.cliente_id = data.get("cliente_id", None)
+        self.cuenta_id = data.get("cuenta_id", None)
+        self.nombre_solicitante = str(data.get("nombre_solicitante", ""))
         self.ivr = str(data.get("ivr", ""))
         self.estado_actual = data.get("estado_actual", "")
         self.fecha_inicio = data.get("fecha_inicio", "")
@@ -22,6 +25,7 @@ class TramiteConfig:
 
 class CuentaConfig:
     def __init__(self, data: dict):
+        self.cliente_id = data.get("cliente_id", None)
         self.correo = data.get("correo", "")
         self.contrasena = data.get("contrasena", "")
         # Soporte para telegram_chat_ids con retrocompatibilidad a numeros_whatsapp
