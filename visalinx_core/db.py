@@ -139,6 +139,7 @@ class DatabaseManager:
                     LEFT JOIN sedes_cas scas ON o.cas_id = scas.id
                     WHERE t.estado_proceso = 'PENDIENTE'
                       AND c.activo = TRUE
+                      AND c.bloqueado_por_pago = FALSE
                       AND cta.activa = TRUE
                       AND t.fecha_tope >= CURRENT_DATE
                     ORDER BY cta.id, t.id, o.prioridad ASC;
